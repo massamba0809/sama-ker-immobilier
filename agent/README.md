@@ -20,6 +20,7 @@ python -m pytest                                  # 37 tests, sans clé API ni r
 python -m sama_agent.cli email --thread demo-1 --from client@example.com \
   --subject "Un F3 à Mermoz" --body "Bonjour, je cherche un F3 à Mermoz, budget 400 000 F."
 python -m sama_agent.cli inbox      # lit les demandes non traitées (Gmail) et les traite une à une
+python -m sama_agent.cli inbox --watch 60   # boucle de démo : relit la boîte toutes les 60 s
 python -m sama_agent.cli pending    # reprend les validations laissées en attente (même après redémarrage)
 python -m tests.live.run_scenarios  # 6 scénarios avec le VRAI modèle sur outils mock (clé requise)
 ```

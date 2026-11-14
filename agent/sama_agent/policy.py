@@ -56,6 +56,8 @@ POLICIES: dict[str, ToolPolicy] = {
         preview_tool="lire_brouillon",
         preview_arg_map=(("draft_id", "draft_id"),),
     ),
+    # Suivi interne (libellés Gmail) : appelé par l'orchestrateur après chaque traitement, jamais par le modèle.
+    "changer_libelle": ToolPolicy(Risk.PREPARE, llm_visible=False, confirm_key="message_id"),
     # --- Local à l'agent ---
     "transmettre_a_conseiller": ToolPolicy(Risk.PREPARE, confirm_key="escalation_id"),
 }

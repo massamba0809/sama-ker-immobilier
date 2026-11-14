@@ -31,3 +31,7 @@ class StateIndex:
     def threads(self) -> list[str]:
         with self._conn() as c:
             return [r[0] for r in c.execute("SELECT thread_id FROM threads ORDER BY ts")]
+
+    def messages_for_thread(self, thread_id: str) -> list[str]:
+        with self._conn() as c:
+            return [r[0] for r in c.execute("SELECT message_id FROM processed WHERE thread_id=? ORDER BY ts", (thread_id,))]

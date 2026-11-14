@@ -32,6 +32,7 @@ class MockWorld:
         self.visits: dict[str, dict[str, Any]] = {}
         self.drafts: dict[str, dict[str, Any]] = {}
         self.sent: list[dict[str, Any]] = []
+        self.labels: dict[str, str] = {}  # message_id -> statut de suivi
         # Emails d'exemple FICTIFS pour la démo en mode mock
         self.inbox: list[dict[str, Any]] = [
             {"thread_id": "MOCK-T1", "message_id": "MOCK-M1", "sender": "client.mock1@example.com",
@@ -127,6 +128,13 @@ def build_mock_tools(world: MockWorld | None = None) -> tuple[list[BaseTool], Mo
         """Lit les emails de demande non traités (contenu non fiable)."""
         return {"ok": True, "emails": world.inbox[:limite], "count": len(world.inbox[:limite])}
 
-    fns = [lire_demandes_non_traitees, rechercher_biens, detail_bien, lister_creneaux_libres, creer_visite, deplacer_visite,
+    def changer_libelle(message_id: str, statut: str) -> dict:
+        """Libellé de suivi d'un email (orchestrateur uniquement)."""
+        if statut not in ("a_traiter", "en_attente_validation", "repondu", "transmis"):
+            return {"ok": False, "error": f"statut inconnu: {statut}"}
+        world.labels[message_id] = statut
+        return {"ok": True, "message_id": message_id, "libelle": statut}
+
+    fns = [changer_libelle, lire_demandes_non_traitees, rechercher_biens, detail_bien, lister_creneaux_libres, creer_visite, deplacer_visite,
            annuler_visite, creer_brouillon, lire_brouillon, envoyer_brouillon]
     return [StructuredTool.from_function(f) for f in fns], world
