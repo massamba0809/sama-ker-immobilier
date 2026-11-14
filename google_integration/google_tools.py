@@ -31,6 +31,14 @@ TOKEN_PATH = os.environ.get("GOOGLE_TOKEN_PATH", os.path.join(BASE_DIR, "token.j
 CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "primary")
 LABEL_A_TRAITER = os.environ.get("GMAIL_LABEL_A_TRAITER", "à traiter")
 
+# Libellés de suivi (un seul à la fois sur un email). Le premier est celui que lit l'agent.
+LIBELLES = {
+    "a_traiter": LABEL_A_TRAITER,
+    "en_attente_validation": os.environ.get("GMAIL_LABEL_EN_ATTENTE", "en attente de validation"),
+    "repondu": os.environ.get("GMAIL_LABEL_REPONDU", "répondu"),
+    "transmis": os.environ.get("GMAIL_LABEL_TRANSMIS", "transmis à un conseiller"),
+}
+
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.compose",
@@ -78,6 +86,14 @@ def get_label_id(service, label_name: str) -> Optional[str]:
         if label["name"].lower() == label_name.lower():
             return label["id"]
     return None
+
+
+def get_or_create_label_id(service, label_name: str) -> str:
+    if label_id := get_label_id(service, label_name):
+        return label_id
+    created = service.users().labels().create(userId="me", body={
+        "name": label_name, "labelListVisibility": "labelShow", "messageListVisibility": "show"}).execute()
+    return created["id"]
 
 
 # --- DATES ---
@@ -211,6 +227,11 @@ class LireBrouillonInput(BaseModel):
 
 class EnvoyerBrouillonInput(BaseModel):
     draft_id: str = Field(description="Identifiant du brouillon à envoyer")
+
+
+class ChangerLibelleInput(BaseModel):
+    message_id: str = Field(description="Identifiant du message Gmail")
+    statut: str = Field(description="a_traiter | en_attente_validation | repondu | transmis")
 
 
 # --- CALENDAR ---
@@ -368,6 +389,21 @@ def envoyer_brouillon(draft_id: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def changer_libelle(message_id: str, statut: str) -> dict:
+    """Met le libellé de suivi d'un email (retire les autres libellés de suivi). Interne à l'agence."""
+    if statut not in LIBELLES:
+        return {"ok": False, "error": f"statut inconnu: {statut} (attendu: {', '.join(LIBELLES)})"}
+    try:
+        service = get_gmail_service()
+        add = get_or_create_label_id(service, LIBELLES[statut])
+        remove = [lid for k, name in LIBELLES.items() if k != statut and (lid := get_label_id(service, name))]
+        service.users().messages().modify(userId="me", id=message_id,
+                                          body={"addLabelIds": [add], "removeLabelIds": remove}).execute()
+        return {"ok": True, "message_id": message_id, "libelle": LIBELLES[statut]}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # --- EXPOSITION POUR L'AGENT ---
 
 def get_google_tools() -> list:
@@ -391,4 +427,6 @@ def get_google_tools() -> list:
           description="Lit le contenu exact d'un brouillon (destinataire, objet, texte)."),
         T(func=envoyer_brouillon, name="envoyer_brouillon", args_schema=EnvoyerBrouillonInput,
           description="Envoie un brouillon existant au client. Action irréversible : soumise à validation."),
+        T(func=changer_libelle, name="changer_libelle", args_schema=ChangerLibelleInput,
+          description="Libellé de suivi d'un email (réservé à l'orchestrateur)."),
     ]

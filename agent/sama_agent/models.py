@@ -50,3 +50,5 @@ class RunResult(BaseModel):
     final_text: str = ""
     pending: list[ApprovalRequest] = Field(default_factory=list)
     effects: list[dict[str, Any]] = Field(default_factory=list)  # actions réellement confirmées par les outils
+    # Email mis de côté car une validation est déjà en attente sur ce fil (sera repris ensuite)
+    deferred: bool = False

@@ -51,6 +51,8 @@ class FakeGoogle:
         self.drafts: dict[str, dict] = {}
         self.sent: list[dict] = []
         self.inbox: list[dict] = []
+        self.labels: list[dict] = [{"id": "L1", "name": "à traiter"}]
+        self.msg_labels: dict[str, set] = {}
         self.ids = itertools.count(1)
 
     # -- calendar
@@ -98,14 +100,29 @@ class FakeGoogle:
             "body": {"data": _b64(msg.get_payload(decode=True).decode())}}}}
         return {"id": did}
 
+    def _label_create(self, userId, body):
+        lab = {"id": f"L{next(self.ids)}", "name": body["name"]}
+        self.labels.append(lab)
+        return lab
+
+    def _modify(self, userId, id, body):
+        cur = self.msg_labels.setdefault(id, {"L1"})
+        cur |= set(body["addLabelIds"])
+        cur -= set(body["removeLabelIds"])
+        return {"id": id}
+
+    def label_names(self, mid):
+        return {l["name"] for l in self.labels if l["id"] in self.msg_labels.get(mid, {"L1"})}
+
     def _draft_send(self, userId, body):
         self.sent.append(self.drafts.pop(body["id"]))
         return {"id": f"sent{next(self.ids)}"}
 
     def gmail(self):
         users = _Res(
-            labels=lambda: _Res(list=lambda userId: {"labels": [{"id": "L1", "name": "à traiter"}]}),
+            labels=lambda: _Res(list=lambda userId: {"labels": list(self.labels)}, create=self._label_create),
             messages=lambda: _Res(
+                modify=self._modify,
                 list=lambda userId, labelIds, maxResults=10: {"messages": [{"id": m["id"]} for m in self.inbox][:maxResults]},
                 get=lambda userId, id, format=None: next(m for m in self.inbox if m["id"] == id)),
             threads=lambda: _Res(get=lambda userId, id, **_: {"messages": [m for m in self.inbox if m["threadId"] == id]}),
@@ -142,7 +159,7 @@ def test_loaded_through_settings_with_policy_names():
 
     tools = load_google_tools(Settings(google_tools_module="google_integration.google_tools", _env_file=None))
     names = {t.name for t in tools}
-    assert len(names) == 8 and names <= set(POLICIES)
+    assert len(names) == 9 and names <= set(POLICIES)
 
 
 def test_slots_follow_agency_rules_and_skip_busy(g):
@@ -204,6 +221,18 @@ def test_draft_roundtrip_keeps_exact_text_and_threading(g):
     headers = {h["name"]: h["value"] for h in fake.drafts[d["draft_id"]]["message"]["payload"]["headers"]}
     assert headers["In-Reply-To"].startswith("<m")
     assert gt.envoyer_brouillon(d["draft_id"])["ok"] and len(fake.sent) == 1
+
+
+def test_label_moves_email_between_tracking_labels(g):
+    gt, fake = g
+    fake.add_email("T1", "awa@x.sn", "F3", "Bonjour")
+    mid = fake.inbox[0]["id"]
+    assert gt.changer_libelle(mid, "en_attente_validation")["ok"]
+    assert fake.label_names(mid) == {"en attente de validation"}  # « à traiter » retiré, libellé créé
+    assert gt.changer_libelle(mid, "repondu")["libelle"] == "répondu"
+    assert fake.label_names(mid) == {"répondu"}
+    assert sum(l["name"] == "répondu" for l in fake.labels) == 1
+    assert gt.changer_libelle(mid, "supprime")["ok"] is False
 
 
 def test_api_errors_become_ok_false(g, monkeypatch):

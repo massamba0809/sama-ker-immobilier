@@ -2,6 +2,7 @@
 
     python -m sama_agent.cli email --thread t1 --from client@example.com --subject "..." --body "..."
     python -m sama_agent.cli inbox      # lit les demandes non traitées et les traite une à une
+    python -m sama_agent.cli inbox --watch 60   # boucle de démo : relit la boîte toutes les 60 s (Ctrl-C pour arrêter)
     python -m sama_agent.cli pending    # reprend les validations laissées en attente
 
 Chaque action sensible (envoi d'email, écriture agenda) est affichée avec ses paramètres exacts et
@@ -48,12 +49,35 @@ def show(result: RunResult) -> None:
         print(f"  ✔ {e['tool']} -> {json.dumps(e['result'], ensure_ascii=False)[:200]}")
 
 
+async def watch_inbox(agent: SamaAgent, interval: float) -> None:
+    """Boucle de démo : traite les validations laissées en attente, puis relit la boîte à intervalle régulier.
+    Une erreur de lecture (réseau, token) est affichée et la boucle continue."""
+    print(f"Surveillance de la boîte toutes les {interval:g} s (Ctrl-C pour arrêter).")
+    for thread_id in await agent.pending_threads():
+        result = await agent.resume(thread_id, await decide(await agent.pending(thread_id)))
+        while result.status == "pending_approval":
+            result = await agent.resume(thread_id, await decide(result.pending))
+        show(result)
+    while True:
+        try:
+            for r in await agent.process_inbox(decide):
+                if r.status != "skipped":
+                    show(r)
+                    print(f"Trace : {agent.tracer.path_for(r.thread_id)}")
+        except RuntimeError as e:
+            print(f"[boîte] {e}", file=sys.stderr)
+        await asyncio.sleep(interval)
+
+
 async def amain(args: argparse.Namespace) -> int:
     agent = await SamaAgent.create(Settings())
     try:
         if args.cmd == "email":
             email = InboundEmail(thread_id=args.thread, sender=args.sender, subject=args.subject, body=args.body)
             results = [await agent.process(email, decide)]
+        elif args.cmd == "inbox" and args.watch:
+            await watch_inbox(agent, args.watch)
+            return 0
         elif args.cmd == "inbox":
             results = await agent.process_inbox(decide)
             if not results:
@@ -84,9 +108,15 @@ def main() -> None:
     e.add_argument("--subject", default="")
     e.add_argument("--body", required=True)
     e.add_argument("--thread", required=True, help="identifiant du fil Gmail (clé de l'état)")
-    sub.add_parser("inbox", help="lire et traiter les demandes non traitées")
+    i = sub.add_parser("inbox", help="lire et traiter les demandes non traitées")
+    i.add_argument("--watch", type=float, default=0, metavar="SECONDES",
+                   help="relire la boîte en boucle à cet intervalle (démo)")
     sub.add_parser("pending", help="reprendre les validations en attente")
-    sys.exit(asyncio.run(amain(p.parse_args())))
+    try:
+        sys.exit(asyncio.run(amain(p.parse_args())))
+    except KeyboardInterrupt:
+        print("\nArrêt.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
