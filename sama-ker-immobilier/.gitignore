@@ -1,0 +1,39 @@
+# Secrets et identifiants
+.env
+*.env
+!.env.example
+credentials.json
+token.json
+token*.json
+client_secret*.json
+secrets/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Données d'exécution locales
+agent/data/
+agent/traces/*.jsonl
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+agent/data_live/
+
+# Fichiers personnels / hors livrable (ne pas publier)
+directive/
+main.py
+
+# Secrets Google
+google_integration/token.json
+google_integration/credentials.json
+google_integration/__pycache__/
