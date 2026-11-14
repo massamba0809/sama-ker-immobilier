@@ -32,3 +32,7 @@ agent/data_live/
 # Fichiers personnels / hors livrable (ne pas publier)
 directive/
 main.py
+
+# Secrets Google
+google_integration/token.json
+google_integration/credentials.json
