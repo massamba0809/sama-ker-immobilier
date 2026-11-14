@@ -1,0 +1,6 @@
+{"ts": 1794620417.98, "thread_id": "T-nego", "event": "email_received", "sender": "client.mock@example.com", "subject": "Loyer", "message_id": "live-2"}
+{"ts": 1794620419.507, "thread_id": "T-nego", "event": "llm_response", "step": 1, "tokens": {"input_tokens": 1787, "output_tokens": 37, "total_tokens": 1824, "input_token_details": {"cache_read": 0}}, "tool_calls": [{"name": "transmettre_a_conseiller", "args": {"motif": "Demande de négociation de loyer", "thread_id": "T-nego"}}], "text": ""}
+{"ts": 1794620419.511, "thread_id": "T-nego", "event": "tool_call", "tool": "transmettre_a_conseiller", "args": {"motif": "Demande de négociation de loyer", "thread_id": "T-nego"}, "risk": "prepare"}
+{"ts": 1794620419.512, "thread_id": "T-nego", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-9bfee734", "empty": false}}
+{"ts": 1794620420.512, "thread_id": "T-nego", "event": "llm_response", "step": 2, "tokens": {"input_tokens": 1866, "output_tokens": 23, "total_tokens": 1889, "input_token_details": {"cache_read": 0}}, "tool_calls": [], "text": "La demande a été transmise à un conseiller humain pour traitement, car elle concerne une négociation de loyer."}
+{"ts": 1794620420.522, "thread_id": "T-nego", "event": "run_result", "status": "escalated", "n_effects": 1}
