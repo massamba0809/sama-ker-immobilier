@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import importlib
 import shlex
+import sys
 
 from langchain_core.tools import BaseTool
 
-from ..config import Settings
+from ..config import AGENT_ROOT, Settings
 from .local import build_local_tools
 from .mocks import MockWorld, build_mock_tools
 
@@ -32,6 +33,10 @@ async def load_catalogue_tools_mcp(settings: Settings) -> list[BaseTool]:
 def load_google_tools(settings: Settings) -> list[BaseTool]:
     if not settings.google_tools_module:
         raise RuntimeError("GOOGLE_TOOLS_MODULE non défini (module de Baye Serigne attendu).")
+    # Le module de Baye Serigne vit à la racine du dépôt (../google_integration), à côté de agent/.
+    repo_root = str(AGENT_ROOT.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     module = importlib.import_module(settings.google_tools_module)
     return list(module.get_google_tools())
 
