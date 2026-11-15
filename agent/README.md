@@ -77,6 +77,80 @@ vraie suspension persistée par fil, nécessaire à la validation humaine ; l'ad
 
 Voir [`docs/INTERFACES.md`](docs/INTERFACES.md).
 
+## Partie 2 — Catalogue, SQLite et serveur MCP (Abdou dev)
+
+Le module `catalog/` fournit une base SQLite contenant 30 biens fictifs et expose les outils MCP
+`rechercher_biens` et `detail_bien`, ainsi que la ressource `agence://sama-ker-immobilier`.
+Les réponses suivent `{ok: bool, ...}`. Une recherche sans résultat renvoie une liste vide avec
+`count: 0`; les erreurs comportent un message exploitable. Les filtres combinent quartier, type,
+budget mensuel maximal en FCFA, nombre exact ou intervalle de pièces et disponibilité. La recherche
+ignore la casse et les accents; le plafond du loyer est inclusif. La disponibilité vaut `true` par
+défaut; `null` inclut les biens de tous les statuts. Les adresses, loyers et disponibilités du jeu
+sont fictifs et doivent être confirmés avant une visite.
+
+### Tester le catalogue
+
+Depuis la racine du dépôt, dans PowerShell, créer l'environnement Python s'il n'existe pas, puis
+installer les dépendances :
+
+```powershell
+if (-not (Test-Path .venv\Scripts\python.exe)) { python -m venv .venv }
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r catalog\requirements.txt
+```
+
+Exécuter les tests unitaires et le jeu de 15 demandes :
+
+```powershell
+python -m pytest catalog\tests -v
+python -m catalog.evaluation.evaluate
+```
+
+Résultats attendus : `15 passed`, `success_rate: 1.0`, `successful: 15` et `total: 15`.
+Le rapport résume aussi le nombre d'appels outils et le temps de recherche SQLite.
+
+Pour tester avec MCP Inspector, installer Node.js puis lancer depuis la racine :
+
+```powershell
+npx @modelcontextprotocol/inspector python -m catalog.server
+```
+
+Dans Inspector, connecter le serveur, appeler `rechercher_biens` avec `quartier: "Mermoz"` et
+`pieces: 3`, puis transmettre l'identifiant retourné à `detail_bien`. La ressource
+`agence://sama-ker-immobilier` est également disponible. La base SQLite est créée au premier
+lancement sous `catalog\data\catalogue.sqlite3`; `CATALOG_DB_PATH` permet de choisir un autre
+chemin. Pour l'intégration MCP stdio de l'agent, utiliser `MCP_COMMAND=python` et
+`MCP_ARGS=-m catalog.server`.
+
+### Fichiers du module
+
+- `catalog/server.py` : schéma, données de démonstration, fonctions de recherche et serveur MCP.
+- `catalog/tests/test_catalog.py` : tests de la base, des filtres, des erreurs et des détails.
+- `catalog/evaluation/emails.json` : 15 demandes avec filtres et résultats attendus.
+- `catalog/evaluation/evaluate.py` : évaluation reproductible des recherches.
+- `catalog/requirements.txt` : dépendances du module.
+
+### Publication Git et tags
+
+Chaque membre travaille sur sa branche dédiée et pousse ses commits progressivement après
+vérification. Pour publier la branche catalogue :
+
+```powershell
+git add -- catalog agent\README.md
+git commit -m "feat(catalog): ajouter les outils du catalogue"
+git push -u origin abdou_dev
+```
+
+Pour marquer un jalon validé, créer un tag annoté après le commit et pousser ce tag :
+
+```powershell
+git tag -a catalog-v1.0.0 -m "Catalogue SQLite et serveur MCP"
+git push origin catalog-v1.0.0
+```
+
+Les autres membres peuvent documenter leur module dans ce même README, avec une section dédiée à
+leur partie.
+
 ## Limites connues
 
 * Détection d'injection par motifs : volontairement étroite ; la vraie protection est structurelle.

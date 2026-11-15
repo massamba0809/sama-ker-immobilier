@@ -1,0 +1,107 @@
+[
+  {
+    "id": "email-01",
+    "objet": "F3 à Mermoz",
+    "corps": "Bonjour, je cherche un appartement de 3 pièces à Mermoz, budget 300 000 F.",
+    "arguments": {"quartier": "Mermoz", "type": "Appartement", "budget_max": 300000, "pieces": 3},
+    "biens_attendus": ["SK-001"]
+  },
+  {
+    "id": "email-02",
+    "objet": "Grand appartement aux Almadies",
+    "corps": "Je cherche un appartement de 4 pièces aux Almadies pour 600 000 F maximum.",
+    "arguments": {"quartier": "Almadies", "type": "Appartement", "budget_max": 600000, "pieces_min": 4},
+    "biens_attendus": ["SK-004"]
+  },
+  {
+    "id": "email-03",
+    "objet": "Studio à Ngor",
+    "corps": "Bonsoir, avez-vous un studio disponible à Ngor ?",
+    "arguments": {"quartier": "Ngor", "type": "Studio"},
+    "biens_attendus": []
+  },
+  {
+    "id": "email-04",
+    "objet": "Maison avec cinq pièces",
+    "corps": "Je souhaite une maison de 5 pièces à Ngor, maximum 650 000 F.",
+    "arguments": {"quartier": "Ngor", "type": "Maison", "pieces": 5, "budget_max": 650000},
+    "biens_attendus": ["SK-009"]
+  },
+  {
+    "id": "email-05",
+    "objet": "F2 à Ouakam",
+    "corps": "Je cherche un F2 à Ouakam avec un budget de 210 000 F.",
+    "arguments": {"quartier": "Ouakam", "type": "Appartement", "pieces": 2, "budget_max": 210000},
+    "biens_attendus": ["SK-010"]
+  },
+  {
+    "id": "email-06",
+    "objet": "Sacré-Cœur",
+    "corps": "Un appartement F3 à Sacré-Cœur, loyer max 350 000 F svp.",
+    "arguments": {"quartier": "Sacré-Cœur", "pieces_min": 3, "budget_max": 350000},
+    "biens_attendus": ["SK-013"]
+  },
+  {
+    "id": "email-07",
+    "objet": "Logement à Yoff",
+    "corps": "Bonjour, un appartement de 2 ou 3 pièces à Yoff, jusqu'à 330 000 francs.",
+    "arguments": {"quartier": "Yoff", "type": "Appartement", "pieces_min": 2, "pieces_max": 3, "budget_max": 330000},
+    "biens_attendus": ["SK-016", "SK-017"]
+  },
+  {
+    "id": "email-08",
+    "objet": "Plateau budget 260 000",
+    "corps": "Je cherche un studio au Plateau pour 260 000 F maximum.",
+    "arguments": {"quartier": "Plateau", "type": "Studio", "budget_max": 260000},
+    "biens_attendus": ["SK-021"]
+  },
+  {
+    "id": "email-09",
+    "objet": "Liberté 6 F3",
+    "corps": "Avez-vous un F3 à Liberté 6 pour moins de 400 000 F ?",
+    "arguments": {"quartier": "Liberté 6", "pieces_min": 3, "budget_max": 400000},
+    "biens_attendus": ["SK-023"]
+  },
+  {
+    "id": "email-10",
+    "objet": "Fann Résidence",
+    "corps": "Appartement de 3 pièces à Fann, budget maximum 500 000 FCFA.",
+    "arguments": {"quartier": "Fann", "type": "Appartement", "pieces": 3, "budget_max": 500000},
+    "biens_attendus": ["SK-025"]
+  },
+  {
+    "id": "email-11",
+    "objet": "Point E",
+    "corps": "Je cherche un F3 au Point E, maximum 400 000 F.",
+    "arguments": {"quartier": "Point E", "pieces_min": 3, "budget_max": 400000},
+    "biens_attendus": ["SK-028"]
+  },
+  {
+    "id": "email-12",
+    "objet": "Petit budget HLM",
+    "corps": "Logement de 2 pièces à HLM, pas plus de 160 000 F.",
+    "arguments": {"quartier": "HLM", "pieces_min": 2, "pieces_max": 2, "budget_max": 160000},
+    "biens_attendus": ["SK-029"]
+  },
+  {
+    "id": "email-13",
+    "objet": "Villa familiale",
+    "corps": "Une villa de quatre pièces aux Parcelles Assainies, loyer max 300 000.",
+    "arguments": {"quartier": "Parcelles Assainies", "type": "Villa", "pieces_min": 4, "budget_max": 300000},
+    "biens_attendus": ["SK-030"]
+  },
+  {
+    "id": "email-14",
+    "objet": "Sacré Coeur sans accents",
+    "corps": "Appartement à SACRE COEUR, budget 200 000 F maximum.",
+    "arguments": {"quartier": "SACRE COEUR", "type": "Studio", "budget_max": 200000},
+    "biens_attendus": ["SK-015"]
+  },
+  {
+    "id": "email-15",
+    "objet": "Mermoz tous statuts",
+    "corps": "Quels appartements de 3 pièces y a-t-il à Mermoz, y compris ceux à confirmer ?",
+    "arguments": {"quartier": "Mermoz", "type": "Appartement", "pieces": 3, "disponible": null},
+    "biens_attendus": ["SK-001", "SK-003"]
+  }
+]
