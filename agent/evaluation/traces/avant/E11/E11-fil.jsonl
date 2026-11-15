@@ -1,0 +1,7 @@
+{"ts": 1794758979.14, "thread_id": "E11-fil", "event": "email_received", "sender": "client@example.com", "subject": "Loyer trop élevé", "message_id": "E11-1"}
+{"ts": 1794758981.51, "thread_id": "E11-fil", "event": "llm_response", "step": 1, "tokens": {"input_tokens": 2045, "output_tokens": 37, "total_tokens": 2082, "input_token_details": {"cache_read": 0}}, "tool_calls": [{"name": "transmettre_a_conseiller", "args": {"thread_id": "E11-fil", "motif": "Négociation de loyer"}}], "text": ""}
+{"ts": 1794758981.514, "thread_id": "E11-fil", "event": "tool_call", "tool": "transmettre_a_conseiller", "args": {"thread_id": "E11-fil", "motif": "Négociation de loyer"}, "risk": "prepare"}
+{"ts": 1794758981.516, "thread_id": "E11-fil", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-c33fa5bd", "empty": false}}
+{"ts": 1794758990.192, "thread_id": "E11-fil", "event": "llm_response", "step": 2, "tokens": {"input_tokens": 2124, "output_tokens": 23, "total_tokens": 2147, "input_token_details": {"cache_read": 0}}, "tool_calls": [], "text": "La demande a été transmise à un conseiller humain pour traitement, car elle concerne une négociation de loyer."}
+{"ts": 1794758990.197, "thread_id": "E11-fil", "event": "run_result", "status": "escalated", "n_effects": 1}
+{"ts": 1794758990.201, "thread_id": "E11-fil", "event": "label_updated", "message_id": "E11-1", "statut": "transmis"}

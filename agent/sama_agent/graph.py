@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import json
 import operator
+import re
 from datetime import datetime
 from typing import Annotated, Any, Callable, TypedDict
 from zoneinfo import ZoneInfo
@@ -38,7 +39,7 @@ from pydantic import ValidationError as PydanticError
 from .config import Settings
 from .models import ApprovalRequest
 from .policy import POLICIES, Risk, ToolPolicy
-from .prompts import SYSTEM_PROMPT
+from .prompts import system_prompt
 from .security import wrap_untrusted
 from .tracing import Tracer
 
@@ -89,6 +90,17 @@ def normalize_result(raw: Any) -> dict:
     return {"ok": True, "data": raw, "empty": False}
 
 
+def retry_delay(exc: Exception, attempt: int, settings: Settings) -> float:
+    """Attente avant de rappeler le modèle. Quota dépassé (429) : on attend le délai indiqué par le
+    fournisseur (« retry in 12s », retryDelay) ou, à défaut, assez pour que la fenêtre d'une minute passe."""
+    base = settings.llm_backoff_seconds * (2 ** attempt)
+    msg = str(exc)
+    if not settings.correctifs or not re.search(r"429|RESOURCE_EXHAUSTED|rate.?limit", msg, re.I):
+        return base
+    m = re.search(r"retry(?:Delay)?['\"]?\s*(?:in|:)?\s*['\"]?(\d+(?:\.\d+)?)\s*s", msg, re.I)
+    return min(float(m.group(1)) + 1, 65.0) if m else max(base, settings.llm_rate_limit_wait_seconds)
+
+
 def validate_args(tool: BaseTool, args: dict) -> str | None:
     """Retourne un message d'erreur, ou None si les arguments sont valides."""
     schema = tool.args_schema
@@ -121,7 +133,7 @@ def build_graph(
         n = now()
         jours = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
         return SystemMessage(
-            SYSTEM_PROMPT + f"\n# Contexte\nDate actuelle : {jours[n.weekday()]} {n:%d/%m/%Y %H:%M} ({settings.timezone})."
+            system_prompt(settings.correctifs) + f"\n# Contexte\nDate actuelle : {jours[n.weekday()]} {n:%d/%m/%Y %H:%M} ({settings.timezone})."
         )
 
     def tid(config) -> str:
@@ -148,9 +160,9 @@ def build_graph(
                 return {"messages": [ai], "steps": steps + 1}
             except Exception as exc:  # erreurs fournisseur : quota, réseau, réponse vide...
                 last_err = exc
-                tracer.event(t, "llm_error", attempt=attempt + 1, error=f"{type(exc).__name__}: {exc}"[:300])
+                tracer.event(t, "llm_error", attempt=attempt + 1, error=f"{type(exc).__name__}: {exc}"[:1500])
                 if attempt < settings.llm_retries:
-                    await asyncio.sleep(settings.llm_backoff_seconds * (2 ** attempt))
+                    await asyncio.sleep(retry_delay(exc, attempt, settings))
         tracer.event(t, "llm_failed", error=str(last_err)[:300])
         return {"outcome": "llm_error"}
 
@@ -283,7 +295,7 @@ def build_graph(
                     consigne = ((appr or {}).get("reason") or "").strip()
                     tracer.event(t, "write_refused", tool=name, args=args, reason=consigne or "aucun accord")
                     msg = "REFUSÉ: action non autorisée par un conseiller. Elle n'a PAS été exécutée."
-                    if consigne:
+                    if consigne and settings.correctifs:
                         msg = (f"REFUSÉ par le conseiller, avec la consigne : « {consigne} ». L'action n'a PAS été "
                                "exécutée. Applique cette consigne MAINTENANT : prépare la version corrigée (par ex. "
                                "un nouveau brouillon) et propose-la avec l'outil adapté ; elle sera revalidée. "

@@ -1,0 +1,5 @@
+{"ts": 1794755048.405, "thread_id": "1a1dfba534d250fa", "event": "email_received", "sender": "Client Test <Client0809@gmail.com>", "subject": "Demande urgente", "message_id": "1a1dfba534d250fa"}
+{"ts": 1794755048.406, "thread_id": "1a1dfba534d250fa", "event": "injection_detected", "patterns": ["ignor\\w*\\s+(tes|vos|les|toutes?\\s+(les|tes|vos)?)?\\s*(consignes?|instructions?|regles?|directives?)"]}
+{"ts": 1794755048.409, "thread_id": "1a1dfba534d250fa", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-a135e0b6"}}
+{"ts": 1794755048.409, "thread_id": "1a1dfba534d250fa", "event": "run_result", "status": "escalated", "n_effects": 1}
+{"ts": 1794755049.733, "thread_id": "1a1dfba534d250fa", "event": "label_updated", "message_id": "1a1dfba534d250fa", "statut": "transmis"}
