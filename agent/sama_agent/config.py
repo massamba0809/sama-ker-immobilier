@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     mcp_url: str = "http://localhost:8000/mcp"
     mcp_command: str = "python"
     mcp_args: str = ""
+    # Dossier depuis lequel le serveur MCP stdio est lancé (défaut : racine du dépôt, où se trouve catalog/)
+    mcp_cwd: str = ""
     google_tools_module: str = ""
 
     # Divers
