@@ -280,10 +280,15 @@ def build_graph(
                     continue
                 appr = approvals.get(cid)
                 if not appr or not appr["approved"]:
-                    reason = (appr or {}).get("reason") or "aucun accord"
-                    tracer.event(t, "write_refused", tool=name, args=args, reason=reason)
-                    reply(cid, name, envelope(name, False, policy, error=(
-                        f"REFUSÉ: action non autorisée par un conseiller ({reason}). Elle n'a PAS été exécutée.")), False)
+                    consigne = ((appr or {}).get("reason") or "").strip()
+                    tracer.event(t, "write_refused", tool=name, args=args, reason=consigne or "aucun accord")
+                    msg = "REFUSÉ: action non autorisée par un conseiller. Elle n'a PAS été exécutée."
+                    if consigne:
+                        msg = (f"REFUSÉ par le conseiller, avec la consigne : « {consigne} ». L'action n'a PAS été "
+                               "exécutée. Applique cette consigne MAINTENANT : prépare la version corrigée (par ex. "
+                               "un nouveau brouillon) et propose-la avec l'outil adapté ; elle sera revalidée. "
+                               "Ne te contente pas de décrire ce qu'il faudrait faire.")
+                    reply(cid, name, envelope(name, False, policy, error=msg), False)
                     continue
                 if appr["fingerprint"] != fp:
                     tracer.event(t, "write_refused", tool=name, args=args, reason="paramètres modifiés après accord")

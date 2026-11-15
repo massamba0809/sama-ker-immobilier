@@ -27,7 +27,8 @@ async def load_catalogue_tools_mcp(settings: Settings) -> list[BaseTool]:
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
     if settings.mcp_transport == "stdio":
-        conn = {"transport": "stdio", "command": settings.mcp_command, "args": shlex.split(settings.mcp_args)}
+        conn = {"transport": "stdio", "command": settings.mcp_command, "args": shlex.split(settings.mcp_args),
+                "cwd": settings.mcp_cwd or str(AGENT_ROOT.parent)}
     else:
         conn = {"transport": "streamable_http", "url": settings.mcp_url}
     client = MultiServerMCPClient({"catalogue": conn})
