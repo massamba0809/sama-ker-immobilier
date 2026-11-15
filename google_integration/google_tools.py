@@ -142,6 +142,9 @@ def _check_regles(debut: datetime) -> Optional[str]:
         return "les visites ont lieu du lundi au samedi"
     if local.time() < HEURE_OUVERTURE or fin.time() > HEURE_FERMETURE or fin.date() != local.date():
         return "les visites ont lieu entre 9 h et 18 h (heure de Dakar), fin comprise"
+    depuis_ouverture = local - datetime.combine(local.date(), HEURE_OUVERTURE, tzinfo=TZ)
+    if depuis_ouverture % DUREE_VISITE:
+        return "heure hors grille des créneaux (9h00, 9h45, 10h30…) : utiliser un créneau de lister_creneaux_libres"
     if debut < datetime.now(TZ):
         return "créneau dans le passé"
     return None
