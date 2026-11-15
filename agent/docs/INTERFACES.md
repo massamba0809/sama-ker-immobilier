@@ -36,18 +36,30 @@ arguments typés, docstring rédigée pour le modèle).
 | `creer_brouillon` | préparation | `thread_id`, `destinataire`, `objet`, `corps` | `{ok, draft_id}` |
 | `lire_brouillon` | lecture | `draft_id` | `{ok, thread_id, to, subject, body}` |
 | `envoyer_brouillon` | **écriture** | `draft_id` | `{ok, message_id}` |
+| `changer_libelle` | suivi interne (orchestrateur seul) | `message_id`, `statut` | `{ok, message_id, libelle}` |
 
 Points importants :
 * **`lire_brouillon` est indispensable** : le conseiller valide le texte exact du brouillon, et
   l'accord est invalidé si ce texte change avant l'envoi.
 * Les règles d'agence (45 min, lundi–samedi, 9 h–18 h, Africa/Dakar, adresse du bien dans
   l'événement) sont appliquées **par vos outils** ; l'agent ne les recalcule pas.
-* Gestion des libellés (à traiter / en attente de validation / répondu / transmis) : chez Baye Serigne.
-  L'agent expose `transmettre_a_conseiller(thread_id, motif)` (local, journal `data/escalations.jsonl`) ;
-  Baye Serigne peut y brancher le libellé « transmis à un conseiller ».
+* Libellés de suivi : `changer_libelle` (module Google) pose un seul libellé parmi
+  `a_traiter` / `en_attente_validation` / `repondu` / `transmis` (créé s'il n'existe pas). C'est
+  l'orchestrateur qui l'appelle après chaque traitement, jamais le modèle :
+
+  | Issue | Libellé |
+  |---|---|
+  | validation en attente | en attente de validation |
+  | envoi effectué | répondu |
+  | transmis à un conseiller (dont injection) | transmis à un conseiller |
+  | terminé sans envoi (ex. envoi refusé) | à traiter (un humain reprend) |
+  | erreur LLM / limite d'étapes, email mis de côté | inchangé |
+
+  Un échec de libellé est tracé mais n'interrompt jamais le traitement.
 * Aucun outil Google ne doit envoyer/écrire de lui-même : l'agent suspend l'exécution avant.
 
 ## Boucle d'intégration (pour la démo)
 
-Un orchestrateur externe lit `lire_demandes_non_traitees`, puis pour chaque email appelle
-`SamaAgent.handle_email(InboundEmail(...))` (`thread_id` = fil Gmail).
+`python -m sama_agent.cli inbox --watch 60` : reprend les validations en attente, puis relit
+`lire_demandes_non_traitees` toutes les 60 s et traite chaque email (`SamaAgent.process`), avec
+validation du conseiller dans le terminal. Une erreur de lecture est affichée et la boucle continue.

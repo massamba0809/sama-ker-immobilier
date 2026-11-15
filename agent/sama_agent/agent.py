@@ -116,12 +116,15 @@ class SamaAgent:
             # une validation est en attente : on n'empile pas de nouveau traitement dessus
             # (non marqué « traité » : l'email sera repris une fois la validation réglée)
             self.tracer.event(t, "email_deferred", reason="validation en attente sur ce fil")
-            return await self._result(t, 0)
+            result = await self._result(t, 0)
+            result.deferred = True  # libellé inchangé : reste « à traiter »
+            return result
 
         suspicious = detect_injection(f"{email.subject}\n{email.body}")
         if suspicious:
             result = await self._escalate_without_llm(email, suspicious)
             self.index.mark_processed(email.message_id, t)
+            await self._sync_labels(result, [email.message_id])
             return result
 
         before = await self._effects_count(t)
@@ -133,6 +136,7 @@ class SamaAgent:
             self.index.mark_processed(email.message_id, t)
         else:
             self.index.mark_processed("", t)  # le fil est connu, pas l'email
+        await self._sync_labels(result, [email.message_id])
         return result
 
     async def process(self, email: InboundEmail, decide: Decider) -> RunResult:
@@ -177,7 +181,10 @@ class SamaAgent:
         payload = {cid: {**d.model_dump(), "fingerprint": shown[cid].fingerprint}
                    for cid, d in decisions.items() if cid in shown}
         await self.graph.ainvoke(Command(resume=payload), self._cfg(thread_id, self.settings))
-        return await self._result(thread_id, before)
+        result = await self._result(thread_id, before)
+        # seul le dernier email traité du fil est concerné (les précédents gardent leur libellé, ex. « répondu »)
+        await self._sync_labels(result, self.index.messages_for_thread(thread_id)[-1:])
+        return result
 
     async def pending(self, thread_id: str) -> list[ApprovalRequest]:
         snap = await self.graph.aget_state(self._cfg(thread_id, self.settings))
@@ -191,6 +198,35 @@ class SamaAgent:
         return bool(await self.pending(thread_id))
 
     # ---------------------------------------------------------------- internes
+    @staticmethod
+    def label_for(result: RunResult) -> str | None:
+        """Libellé de suivi Gmail correspondant à l'issue d'un traitement (None = ne pas toucher)."""
+        if result.deferred:
+            return None
+        if result.status == "pending_approval":
+            return "en_attente_validation"
+        if result.status == "escalated":
+            return "transmis"
+        if result.status == "done":
+            sent = any(e["tool"] == "envoyer_brouillon" for e in result.effects)
+            # terminé sans envoi (ex. envoi refusé par le conseiller) : reste « à traiter » pour un humain
+            return "repondu" if sent else "a_traiter"
+        return None  # llm_error / max_steps : reste « à traiter », sera retraité ; skipped : déjà fait
+
+    async def _sync_labels(self, result: RunResult, message_ids: list[str]) -> None:
+        """Met à jour le libellé Gmail. Ne fait jamais échouer le traitement (erreur tracée seulement)."""
+        statut = self.label_for(result)
+        tool = self.tools.get("changer_libelle")
+        if not statut or tool is None:
+            return
+        for mid in filter(None, message_ids):
+            try:
+                res = normalize_result(await tool.ainvoke({"message_id": mid, "statut": statut}))
+            except Exception as e:  # noqa: BLE001
+                res = {"ok": False, "error": str(e)}
+            self.tracer.event(result.thread_id, "label_updated" if res.get("ok") else "label_error",
+                              message_id=mid, statut=statut, **({} if res.get("ok") else {"error": res.get("error")}))
+
     async def _effects_count(self, thread_id: str) -> int:
         snap = await self.graph.aget_state(self._cfg(thread_id, self.settings))
         return len((snap.values or {}).get("effects", []))

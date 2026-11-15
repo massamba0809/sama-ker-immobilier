@@ -135,3 +135,15 @@ async def test_resume_without_pending_raises(make_agent):
     except ValueError:
         return
     raise AssertionError("resume sans validation en attente aurait dû échouer")
+
+
+async def test_refusal_with_instruction_tells_llm_to_apply_it_now(make_agent):
+    agent, llm, world = await make_agent([
+        tool_call("creer_brouillon", DRAFT, "c1"),
+        tool_call("envoyer_brouillon", {"draft_id": "MOCK-DRAFT-1"}, "c2"),
+        say("Je reformule."),
+    ])
+    await agent.handle_email(email())
+    await agent.resume("t1", {"c2": Decision(approved=False, reason="ajoute l'adresse du bien")})
+    err = json.loads(last_tool_msg(llm).content)["error"]
+    assert "ajoute l'adresse du bien" in err and "MAINTENANT" in err and world.sent == []

@@ -27,11 +27,13 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 60.0
 
     # Outils
-    tools_mode: Literal["mock", "integrated"] = "mock"
+    tools_mode: Literal["mock", "hybrid", "integrated"] = "mock"
     mcp_transport: Literal["stdio", "streamable_http"] = "streamable_http"
     mcp_url: str = "http://localhost:8000/mcp"
     mcp_command: str = "python"
     mcp_args: str = ""
+    # Dossier depuis lequel le serveur MCP stdio est lancé (défaut : racine du dépôt, où se trouve catalog/)
+    mcp_cwd: str = ""
     google_tools_module: str = ""
 
     # Divers
