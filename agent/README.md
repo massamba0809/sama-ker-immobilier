@@ -170,3 +170,6 @@ et les VRAIS outils Google (`google_integration/`) :
 
 Testé le 15/11/2026 sur un compte de test : recherche → créneaux réels → brouillon dans le fil →
 validation du conseiller → envoi → libellés « en attente de validation » puis « répondu ».
+Le 15/11/2026 en `TOOLS_MODE=integrated` (catalogue `catalog/` + Gmail + Agenda réels) : demande « 3 pièces
+Sacré-Cœur ≤ 400 000 F » → SK-013 trouvé, créneau déjà occupé exclu → réponse validée et envoyée → « Je prends
+10h30 » → visite créée après validation → email de confirmation (date, 10h30–11h15, adresse) validé et envoyé.
