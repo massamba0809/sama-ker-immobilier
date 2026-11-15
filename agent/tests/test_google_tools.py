@@ -154,6 +154,19 @@ def _next_monday(hour=10, minute=0) -> datetime:
 
 
 # ---------------------------------------------------------------- contrat
+async def test_hybrid_mode_mixes_mock_catalogue_and_real_google(settings):
+    from google_integration import google_tools as gt
+    from sama_agent.tools.providers import load_tools
+
+    s = settings.model_copy(update={"tools_mode": "hybrid", "google_tools_module": "google_integration.google_tools"})
+    tools, world = await load_tools(s)
+    by_name = {t.name: t for t in tools}
+    assert world is None
+    assert by_name["rechercher_biens"].func.__module__ == "sama_agent.tools.mocks"  # catalogue simulé
+    assert by_name["creer_visite"].func is gt.creer_visite  # Google réel
+    assert "transmettre_a_conseiller" in by_name and "envoyer_brouillon" in by_name
+
+
 def test_loaded_through_settings_with_policy_names():
     from sama_agent.policy import POLICIES
 
@@ -165,7 +178,7 @@ def test_loaded_through_settings_with_policy_names():
 def test_slots_follow_agency_rules_and_skip_busy(g):
     gt, fake = g
     lundi = _next_monday()
-    gt.creer_visite("B1", lundi.replace(hour=9).isoformat(), "c@x.sn")
+    assert gt.creer_visite("B1", lundi.replace(hour=9).isoformat(), "c@x.sn")["ok"]
     res = gt.lister_creneaux_libres(lundi.date().isoformat(), lundi.date().isoformat())
     assert res["ok"] and res["count"] == len(res["creneaux"]) == 11  # 12 créneaux de 45 min dans 9h-18h, 1 pris
     debuts = [datetime.fromisoformat(c["debut"]) for c in res["creneaux"]]
@@ -177,23 +190,27 @@ def test_slots_follow_agency_rules_and_skip_busy(g):
 
 def test_booking_refuses_taken_slot_and_out_of_hours(g):
     gt, fake = g
-    lundi = _next_monday(16)
+    lundi = _next_monday(15, 45)
     first = gt.creer_visite("B1", lundi.isoformat(), "c@x.sn", adresse_bien="12 rue X, Mermoz")
     assert first["ok"] and first["event_id"] in fake.events
     assert fake.events[first["event_id"]]["location"] == "12 rue X, Mermoz"
-    taken = gt.creer_visite("B2", (lundi + timedelta(minutes=30)).isoformat(), "d@x.sn")
-    assert taken == {"ok": False, "error": "créneau déjà pris"}
+    assert gt.creer_visite("B2", lundi.isoformat(), "d@x.sn") == {"ok": False, "error": "créneau déjà pris"}
+    # rendez-vous posé à la main par un conseiller, hors grille, qui chevauche le créneau de 16h30
+    fake._insert("primary", {"start": {"dateTime": lundi.replace(hour=17, minute=0).isoformat()},
+                             "end": {"dateTime": lundi.replace(hour=17, minute=30).isoformat()}})
+    assert gt.creer_visite("B2", lundi.replace(hour=16, minute=30).isoformat(), "d@x.sn")["error"] == "créneau déjà pris"
     assert not gt.creer_visite("B1", lundi.replace(hour=17, minute=30).isoformat(), "c@x.sn")["ok"]  # finit après 18h
+    assert "grille" in gt.creer_visite("B1", lundi.replace(hour=11, minute=0).isoformat(), "c@x.sn")["error"]
     assert not gt.creer_visite("B1", (lundi - timedelta(days=1)).isoformat(), "c@x.sn")["ok"]  # dimanche
-    assert len(fake.events) == 1
+    assert len(fake.events) == 2  # la visite + le rendez-vous manuel
 
 
 def test_move_checks_conflicts_but_not_against_itself(g):
     gt, fake = g
-    lundi = _next_monday(10)
+    lundi = _next_monday(9, 45)
     a = gt.creer_visite("B1", lundi.isoformat(), "c@x.sn")["event_id"]
     gt.creer_visite("B2", lundi.replace(hour=12).isoformat(), "d@x.sn")
-    assert gt.deplacer_visite(a, lundi.replace(minute=15).isoformat())["ok"]  # chevauche seulement elle-même
+    assert gt.deplacer_visite(a, lundi.replace(hour=10, minute=30).isoformat())["ok"]
     assert gt.deplacer_visite(a, lundi.replace(hour=12).isoformat())["error"] == "créneau déjà pris"
     assert gt.annuler_visite(a) == {"ok": True, "event_id": a} and a not in fake.events
 

@@ -83,3 +83,16 @@ Voir [`docs/INTERFACES.md`](docs/INTERFACES.md).
 * Détection d'injection par motifs : volontairement étroite ; la vraie protection est structurelle.
 * Le comportement du vrai modèle (qualité du français, respect du prompt) se mesure avec le jeu de
   15 emails d'Alassane ; les tests ici utilisent un faux LLM scripté.
+
+## Test réel (vrai Gmail / Agenda, catalogue simulé)
+
+En attendant le serveur MCP du catalogue, `TOOLS_MODE=hybrid` utilise le catalogue simulé
+et les VRAIS outils Google (`google_integration/`) :
+
+1. `google_integration/credentials.json` (client OAuth « Application de bureau »), puis
+   `python ../google_integration/auth.py` une fois (crée `token.json`, jamais commité) ;
+2. dans `.env` : `TOOLS_MODE=hybrid`, `GOOGLE_TOOLS_MODULE=google_integration.google_tools` ;
+3. dans Gmail, libellé « à traiter » sur les demandes ; puis `python -m sama_agent.cli inbox --watch 30`.
+
+Testé le 15/11/2026 sur un compte de test : recherche → créneaux réels → brouillon dans le fil →
+validation du conseiller → envoi → libellés « en attente de validation » puis « répondu ».
