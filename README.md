@@ -129,9 +129,9 @@ La base est créée au premier lancement (`catalog/data/catalogue.sqlite3`, ou `
 
 ```bash
 cd agent && python -m pytest                    # agent + module Google (faux Google), sans réseau
-python -m pytest ../catalog/tests               # catalogue
 python -m evaluation.run                        # exercice 6 : 15 emails, avant/après correction (clé Gemini)
-cd .. && python -m catalog.evaluation.evaluate  # recherche du catalogue sur 15 demandes
+cd .. && python -m pytest catalog/tests         # catalogue (depuis la racine du dépôt)
+python -m catalog.evaluation.evaluate           # recherche du catalogue sur 15 demandes
 ```
 
 Résultats de l'évaluation de l'agent et analyse des échecs : [`agent/evaluation/resultats.md`](agent/evaluation/resultats.md).
