@@ -92,3 +92,20 @@ async def test_watch_loop_processes_inbox_and_survives_read_errors(make_agent, m
     with pytest.raises(asyncio.CancelledError):
         await cli.watch_inbox(agent, 1)
     assert calls["n"] == 2 and llm.cursor == 2  # 1re lecture en erreur, 2e lecture traite les 2 emails
+
+
+async def test_resume_only_relabels_the_latest_email_of_the_thread(make_agent):
+    agent, llm, world = await make_agent([
+        tool_call("creer_brouillon", DRAFT, "c1"),
+        tool_call("envoyer_brouillon", {"draft_id": "MOCK-DRAFT-1"}, "c2"),
+        say("Envoyé."),
+        tool_call("creer_brouillon", DRAFT, "c3"),
+        tool_call("envoyer_brouillon", {"draft_id": "MOCK-DRAFT-2"}, "c4"),
+        say("Non envoyé."),
+    ])
+    first, second = email(), email(body="Je prends le créneau de 9h.")
+    await agent.handle_email(first)
+    await agent.resume("t1", {"c2": Decision(approved=True)})
+    await agent.handle_email(second)
+    await agent.resume("t1", {"c4": Decision(approved=False)})
+    assert world.labels == {first.message_id: "repondu", second.message_id: "a_traiter"}

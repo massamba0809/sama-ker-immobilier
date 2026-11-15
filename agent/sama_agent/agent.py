@@ -182,7 +182,8 @@ class SamaAgent:
                    for cid, d in decisions.items() if cid in shown}
         await self.graph.ainvoke(Command(resume=payload), self._cfg(thread_id, self.settings))
         result = await self._result(thread_id, before)
-        await self._sync_labels(result, self.index.messages_for_thread(thread_id))
+        # seul le dernier email traité du fil est concerné (les précédents gardent leur libellé, ex. « répondu »)
+        await self._sync_labels(result, self.index.messages_for_thread(thread_id)[-1:])
         return result
 
     async def pending(self, thread_id: str) -> list[ApprovalRequest]:
