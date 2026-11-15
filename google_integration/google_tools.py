@@ -28,7 +28,10 @@ from pydantic import BaseModel, Field
 # --- CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN_PATH = os.environ.get("GOOGLE_TOKEN_PATH", os.path.join(BASE_DIR, "token.json"))
-CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "primary")
+CALENDAR_ID = os.environ.get("GOOGLE_CALENDAR_ID", "primary")  # agenda utilisé si aucun agenda conseiller n'existe
+# Un agenda par conseiller : tout agenda du compte dont le nom commence par ce préfixe
+# (créés par setup_conseillers.py, ex. « Conseiller - Awa Diop »).
+CONSEILLER_PREFIX = os.environ.get("GOOGLE_CONSEILLER_PREFIX", "Conseiller - ")
 LABEL_A_TRAITER = os.environ.get("GMAIL_LABEL_A_TRAITER", "à traiter")
 
 # Libellés de suivi (un seul à la fois sur un email). Le premier est celui que lit l'agent.
@@ -118,11 +121,12 @@ def _event_bounds(ev: dict) -> tuple[datetime, datetime]:
             datetime.combine(date.fromisoformat(e["date"]), time(0), tzinfo=TZ))
 
 
-def _busy(service, start: datetime, end: datetime, exclude_id: Optional[str] = None) -> list[tuple[datetime, datetime]]:
+def _busy(service, start: datetime, end: datetime, exclude_id: Optional[str] = None,
+          calendar_id: str = CALENDAR_ID) -> list[tuple[datetime, datetime]]:
     items, token = [], None
     while True:
         res = service.events().list(
-            calendarId=CALENDAR_ID, timeMin=start.isoformat(), timeMax=end.isoformat(),
+            calendarId=calendar_id, timeMin=start.isoformat(), timeMax=end.isoformat(),
             singleEvents=True, orderBy="startTime", pageToken=token,
         ).execute()
         items += res.get("items", [])
@@ -152,6 +156,48 @@ def _check_regles(debut: datetime) -> Optional[str]:
 
 def _overlaps(a0: datetime, a1: datetime, busy: list[tuple[datetime, datetime]]) -> bool:
     return any(a0 < b1 and a1 > b0 for b0, b1 in busy)
+
+
+# --- CONSEILLERS (un agenda chacun) ---
+
+def _norm(text: str) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(c for c in t if c.isalnum())
+
+
+def conseillers(service=None) -> dict[str, str]:
+    """{nom du conseiller: id de son agenda}, dans l'ordre alphabétique. Sans agenda conseiller :
+    un seul « conseiller » qui utilise l'agenda par défaut."""
+    service = service or get_calendar_service()
+    items = service.calendarList().list().execute().get("items", [])
+    found = {it["summary"][len(CONSEILLER_PREFIX):].strip(): it["id"]
+             for it in items if it.get("summary", "").startswith(CONSEILLER_PREFIX)}
+    return dict(sorted(found.items())) or {"Agence": CALENDAR_ID}
+
+
+def _choisir(service, conseiller: Optional[str]) -> dict[str, str]:
+    """Conseillers concernés : celui demandé (nom approché, sans accents) ou tous."""
+    tous = conseillers(service)
+    if not conseiller:
+        return tous
+    cible = _norm(conseiller)
+    match = {n: c for n, c in tous.items() if cible and (cible in _norm(n) or _norm(n) in cible)}
+    if not match:
+        raise ValueError(f"conseiller inconnu : {conseiller} (connus : {', '.join(tous)})")
+    return match
+
+
+def _trouver_visite(service, event_id: str) -> tuple[str, str, dict]:
+    """(nom du conseiller, id d'agenda, événement) pour une visite, quel que soit l'agenda."""
+    for nom, cal in conseillers(service).items():
+        try:
+            ev = service.events().get(calendarId=cal, eventId=event_id).execute()
+        except Exception:
+            continue
+        if ev.get("status") != "cancelled":
+            return nom, cal, ev
+    raise ValueError(f"visite introuvable : {event_id}")
 
 
 # --- GMAIL : extraction du texte ---
@@ -193,14 +239,14 @@ def _header(headers: list[dict], name: str) -> str:
 class ListerCreneauxInput(BaseModel):
     date_debut: str = Field(description="Début de la période : date (2026-11-16) ou date-heure ISO 8601")
     date_fin: str = Field(description="Fin de la période : date (2026-11-17, journée incluse) ou date-heure ISO 8601")
-    conseiller: Optional[str] = Field(None, description="Nom ou email du conseiller (optionnel)")
+    conseiller: Optional[str] = Field(None, description="Nom du conseiller (optionnel ; sinon tous les conseillers)")
 
 
 class CreerVisiteInput(BaseModel):
     bien_id: str = Field(description="Identifiant du bien (tel que renvoyé par le catalogue)")
     debut: str = Field(description="Début de la visite, ISO 8601 (ex. 2026-11-16T10:30:00+00:00), pris dans lister_creneaux_libres")
     client_email: str = Field(description="Email du client")
-    conseiller: Optional[str] = Field(None, description="Nom du conseiller (optionnel)")
+    conseiller: Optional[str] = Field(None, description="Conseiller du créneau choisi (champ « conseiller » de lister_creneaux_libres)")
     adresse_bien: Optional[str] = Field(None, description="Adresse du bien (issue de detail_bien), inscrite dans l'événement")
 
 
@@ -247,7 +293,8 @@ def lister_creneaux_libres(date_debut: str, date_fin: str, conseiller: Optional[
             return {"ok": True, "creneaux": [], "count": 0}
         if fin - debut > timedelta(days=31):
             return {"ok": False, "error": "période trop longue (31 jours maximum)"}
-        busy = _busy(get_calendar_service(), debut, fin)
+        service = get_calendar_service()
+        busy = {nom: _busy(service, debut, fin, calendar_id=cal) for nom, cal in _choisir(service, conseiller).items()}
         creneaux = []
         jour = debut.astimezone(TZ).date()
         while jour <= fin.astimezone(TZ).date():
@@ -256,9 +303,10 @@ def lister_creneaux_libres(date_debut: str, date_fin: str, conseiller: Optional[
                 fermeture = datetime.combine(jour, HEURE_FERMETURE, tzinfo=TZ)
                 while s + DUREE_VISITE <= fermeture:
                     e = s + DUREE_VISITE
-                    if s >= debut and e <= fin and not _overlaps(s, e, busy):
-                        creneaux.append({"debut": s.isoformat(), "fin": e.isoformat(),
-                                         "conseiller": conseiller or "Par défaut"})
+                    libres = [nom for nom, b in busy.items() if not _overlaps(s, e, b)]
+                    if s >= debut and e <= fin and libres:
+                        # un créneau par horaire, attribué au premier conseiller libre
+                        creneaux.append({"debut": s.isoformat(), "fin": e.isoformat(), "conseiller": libres[0]})
                     s = e
             jour += timedelta(days=1)
         return {"ok": True, "creneaux": creneaux, "count": len(creneaux)}
@@ -274,45 +322,54 @@ def creer_visite(bien_id: str, debut: str, client_email: str, conseiller: Option
             return {"ok": False, "error": err}
         fin_dt = debut_dt + DUREE_VISITE
         service = get_calendar_service()
-        if _overlaps(debut_dt, fin_dt, _busy(service, debut_dt, fin_dt)):
+        # conseiller demandé, sinon le premier libre ; jamais deux visites en même temps pour un conseiller
+        libre = next(((nom, cal) for nom, cal in _choisir(service, conseiller).items()
+                      if not _overlaps(debut_dt, fin_dt, _busy(service, debut_dt, fin_dt, calendar_id=cal))), None)
+        if libre is None:
             return {"ok": False, "error": "créneau déjà pris"}
+        nom, cal = libre
         event_body = {
-            "summary": f"Visite - Bien {bien_id} (Conseiller : {conseiller or 'Non assigné'})",
+            "summary": f"Visite {bien_id} - {nom}",
             "location": adresse_bien or f"Bien {bien_id} (adresse à compléter)",
-            "description": f"Client : {client_email}\nBien : {bien_id}",
+            "description": f"Conseiller : {nom}\nClient : {client_email}\nBien : {bien_id}",
             "start": {"dateTime": debut_dt.isoformat(), "timeZone": "Africa/Dakar"},
             "end": {"dateTime": fin_dt.isoformat(), "timeZone": "Africa/Dakar"},
             "extendedProperties": {"private": {"bien_id": bien_id, "client_email": client_email,
-                                               "source": "sama-ker-agent"}},
+                                               "conseiller": nom, "source": "sama-ker-agent"}},
         }
-        event = service.events().insert(calendarId=CALENDAR_ID, body=event_body).execute()
-        return {"ok": True, "event_id": event["id"], "debut": debut_dt.isoformat(), "fin": fin_dt.isoformat()}
+        event = service.events().insert(calendarId=cal, body=event_body).execute()
+        return {"ok": True, "event_id": event["id"], "conseiller": nom,
+                "debut": debut_dt.isoformat(), "fin": fin_dt.isoformat()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def deplacer_visite(event_id: str, nouveau_debut: str) -> dict:
+    """Déplace la visite dans l'agenda de SON conseiller."""
     try:
         debut_dt = _parse_dt(nouveau_debut)
         if err := _check_regles(debut_dt):
             return {"ok": False, "error": err}
         fin_dt = debut_dt + DUREE_VISITE
         service = get_calendar_service()
-        if _overlaps(debut_dt, fin_dt, _busy(service, debut_dt, fin_dt, exclude_id=event_id)):
-            return {"ok": False, "error": "créneau déjà pris"}
-        event = service.events().get(calendarId=CALENDAR_ID, eventId=event_id).execute()
+        nom, cal, event = _trouver_visite(service, event_id)
+        if _overlaps(debut_dt, fin_dt, _busy(service, debut_dt, fin_dt, exclude_id=event_id, calendar_id=cal)):
+            return {"ok": False, "error": f"créneau déjà pris pour {nom}"}
         event["start"] = {"dateTime": debut_dt.isoformat(), "timeZone": "Africa/Dakar"}
         event["end"] = {"dateTime": fin_dt.isoformat(), "timeZone": "Africa/Dakar"}
-        updated = service.events().update(calendarId=CALENDAR_ID, eventId=event_id, body=event).execute()
-        return {"ok": True, "event_id": updated["id"], "debut": debut_dt.isoformat(), "fin": fin_dt.isoformat()}
+        updated = service.events().update(calendarId=cal, eventId=event_id, body=event).execute()
+        return {"ok": True, "event_id": updated["id"], "conseiller": nom,
+                "debut": debut_dt.isoformat(), "fin": fin_dt.isoformat()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def annuler_visite(event_id: str) -> dict:
     try:
-        get_calendar_service().events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
-        return {"ok": True, "event_id": event_id}
+        service = get_calendar_service()
+        nom, cal, _ = _trouver_visite(service, event_id)
+        service.events().delete(calendarId=cal, eventId=event_id).execute()
+        return {"ok": True, "event_id": event_id, "conseiller": nom}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -414,10 +471,11 @@ def get_google_tools() -> list:
     return [
         T(func=lister_creneaux_libres, name="lister_creneaux_libres", args_schema=ListerCreneauxInput,
           description="Liste les créneaux de visite libres (45 min, lundi–samedi, 9 h–18 h, heure de Dakar) "
-                      "sur une période. Ne propose au client que des créneaux issus de cet outil."),
+                      "sur une période, avec le conseiller disponible pour chacun. Ne propose au client que des "
+                      "créneaux issus de cet outil."),
         T(func=creer_visite, name="creer_visite", args_schema=CreerVisiteInput,
-          description="Réserve une visite de 45 min dans l'agenda. Refuse (ok=false) un créneau pris ou hors "
-                      "horaires. Action réelle : soumise à validation du conseiller."),
+          description="Réserve une visite de 45 min dans l'agenda du conseiller (celui du créneau choisi). Refuse "
+                      "(ok=false) un créneau pris ou hors horaires. Action réelle : soumise à validation."),
         T(func=deplacer_visite, name="deplacer_visite", args_schema=DeplacerVisiteInput,
           description="Déplace une visite existante vers un nouveau créneau libre. Soumise à validation."),
         T(func=annuler_visite, name="annuler_visite", args_schema=AnnulerVisiteInput,

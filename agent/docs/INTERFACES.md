@@ -29,7 +29,7 @@ arguments typés, docstring rédigée pour le modèle).
 | Outil | Risque | Arguments minimaux | Retour (clé de confirmation) |
 |---|---|---|---|
 | `lister_creneaux_libres` | lecture | `date_debut`, `date_fin`, `conseiller?` | `{ok, creneaux:[{debut, fin, conseiller}], count}` |
-| `creer_visite` | **écriture** | `bien_id`, `debut`, `client_email`, `conseiller?` | `{ok, event_id}` (refus si créneau pris : `ok:false`) |
+| `creer_visite` | **écriture** | `bien_id`, `debut`, `client_email`, `conseiller?`, `adresse_bien?` | `{ok, event_id, conseiller}` (refus si créneau pris : `ok:false`) |
 | `deplacer_visite` | **écriture** | `event_id`, `nouveau_debut` | `{ok, event_id}` |
 | `annuler_visite` | **écriture** | `event_id` | `{ok, event_id}` |
 | `lire_demandes_non_traitees` | lecture (contenu non fiable) | — | liste d'emails avec `thread_id`, expéditeur, objet, corps |
@@ -43,6 +43,10 @@ Points importants :
   l'accord est invalidé si ce texte change avant l'envoi.
 * Les règles d'agence (45 min, lundi–samedi, 9 h–18 h, Africa/Dakar, adresse du bien dans
   l'événement) sont appliquées **par vos outils** ; l'agent ne les recalcule pas.
+* **Un agenda Google par conseiller** (nom « Conseiller - <Nom> », créés par
+  `google_integration/setup_conseillers.py`). `lister_creneaux_libres` renvoie pour chaque horaire le
+  premier conseiller libre ; `creer_visite` écrit dans l'agenda de ce conseiller (jamais deux visites
+  simultanées pour un même conseiller) ; `deplacer_visite`/`annuler_visite` retrouvent l'agenda de la visite.
 * Libellés de suivi : `changer_libelle` (module Google) pose un seul libellé parmi
   `a_traiter` / `en_attente_validation` / `repondu` / `transmis` (créé s'il n'existe pas). C'est
   l'orchestrateur qui l'appelle après chaque traitement, jamais le modèle :
