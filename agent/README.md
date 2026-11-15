@@ -77,6 +77,22 @@ vraie suspension persistée par fil, nécessaire à la validation humaine ; l'ad
 
 Voir [`docs/INTERFACES.md`](docs/INTERFACES.md).
 
+## Tester le catalogue
+
+Le guide d'installation, les tests unitaires, les exemples MCP Inspector et les commandes de
+publication du module catalogue sont dans [`catalog/README.md`](../catalog/README.md). Depuis la
+racine du dépôt, active d'abord l'environnement Python du projet, puis lance les vérifications :
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r catalog\requirements.txt
+python -m pytest catalog\tests -v
+python -m catalog.evaluation.evaluate
+```
+
+Le serveur MCP se lance avec `python -m catalog.server`. Le module et ses tests sont indépendants
+du démarrage de l'agent.
+
 ## Limites connues
 
 * Détection d'injection par motifs : volontairement étroite ; la vraie protection est structurelle.
