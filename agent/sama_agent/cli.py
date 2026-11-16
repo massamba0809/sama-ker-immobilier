@@ -4,6 +4,7 @@
     python -m sama_agent.cli inbox      # lit les demandes non traitées et les traite une à une
     python -m sama_agent.cli inbox --watch 60   # boucle de démo : relit la boîte toutes les 60 s (Ctrl-C pour arrêter)
     python -m sama_agent.cli pending    # reprend les validations laissées en attente
+    python -m sama_agent.cli inbox --watch 30 --voix   # idem, emails lus à voix haute, validation à l'oral
 
 Chaque action sensible (envoi d'email, écriture agenda) est affichée avec ses paramètres exacts et
 n'est exécutée qu'après une réponse explicite du conseiller.
@@ -41,6 +42,52 @@ async def decide(pending: list[ApprovalRequest]) -> dict[str, Decision]:
     return ask_decisions(pending)
 
 
+class Mode:
+    """Clavier (défaut) ou voix : qui valide, et comment on annonce un email reçu."""
+
+    def __init__(self, voix=None):
+        self.voix = voix
+
+    async def decide(self, pending: list[ApprovalRequest]) -> dict[str, Decision]:
+        if self.voix:
+            return await asyncio.to_thread(self.voix.decider, pending)
+        return ask_decisions(pending)
+
+    async def annoncer(self, email: InboundEmail) -> None:
+        print(f"\n>>> Email de {email.sender} — {email.subject}")
+        if self.voix:
+            await asyncio.to_thread(self.voix.annoncer, email)
+
+    async def statut(self, status: str) -> None:
+        if self.voix:
+            await asyncio.to_thread(self.voix.statut, status)
+
+
+async def process_inbox(agent: SamaAgent, mode: Mode) -> list[RunResult]:
+    results = []
+    for email in await agent.fetch_inbox():
+        await mode.annoncer(email)
+        r = await agent.process(email, mode.decide)
+        results.append(r)
+        if r.status != "skipped":
+            show(r)
+            print(f"Trace : {agent.tracer.path_for(r.thread_id)}")
+            await mode.statut(r.status)
+    return results
+
+
+async def resume_pending(agent: SamaAgent, mode: Mode) -> list[RunResult]:
+    results = []
+    for thread_id in await agent.pending_threads():
+        result = await agent.resume(thread_id, await mode.decide(await agent.pending(thread_id)))
+        while result.status == "pending_approval":
+            result = await agent.resume(thread_id, await mode.decide(result.pending))
+        show(result)
+        print(f"Trace : {agent.tracer.path_for(thread_id)}")
+        results.append(result)
+    return results
+
+
 def show(result: RunResult) -> None:
     print(f"\n--- fil {result.thread_id} · statut : {result.status} ---")
     if result.final_text:
@@ -49,52 +96,45 @@ def show(result: RunResult) -> None:
         print(f"  ✔ {e['tool']} -> {json.dumps(e['result'], ensure_ascii=False)[:200]}")
 
 
-async def watch_inbox(agent: SamaAgent, interval: float) -> None:
+async def watch_inbox(agent: SamaAgent, interval: float, mode: Mode | None = None) -> None:
     """Boucle de démo : traite les validations laissées en attente, puis relit la boîte à intervalle régulier.
     Une erreur de lecture (réseau, token) est affichée et la boucle continue."""
+    mode = mode or Mode()
     print(f"Surveillance de la boîte toutes les {interval:g} s (Ctrl-C pour arrêter).")
-    for thread_id in await agent.pending_threads():
-        result = await agent.resume(thread_id, await decide(await agent.pending(thread_id)))
-        while result.status == "pending_approval":
-            result = await agent.resume(thread_id, await decide(result.pending))
-        show(result)
+    await resume_pending(agent, mode)
     while True:
         try:
-            for r in await agent.process_inbox(decide):
-                if r.status != "skipped":
-                    show(r)
-                    print(f"Trace : {agent.tracer.path_for(r.thread_id)}")
+            await process_inbox(agent, mode)
         except RuntimeError as e:
             print(f"[boîte] {e}", file=sys.stderr)
         await asyncio.sleep(interval)
 
 
 async def amain(args: argparse.Namespace) -> int:
-    agent = await SamaAgent.create(Settings())
+    settings = Settings()
+    mode = Mode()
+    if getattr(args, "voix", False):
+        from .voice import ConseillerVocal
+        mode = Mode(ConseillerVocal(settings, clavier_fn=ask_decisions))
+    agent = await SamaAgent.create(settings)
     try:
         if args.cmd == "email":
             email = InboundEmail(thread_id=args.thread, sender=args.sender, subject=args.subject, body=args.body)
-            results = [await agent.process(email, decide)]
+            results = [await agent.process(email, mode.decide)]
+            for r in results:
+                show(r)
+                print(f"Trace : {agent.tracer.path_for(r.thread_id)}")
         elif args.cmd == "inbox" and args.watch:
-            await watch_inbox(agent, args.watch)
+            await watch_inbox(agent, args.watch, mode)
             return 0
         elif args.cmd == "inbox":
-            results = await agent.process_inbox(decide)
+            results = await process_inbox(agent, mode)
             if not results:
                 print("Aucune demande à traiter.")
         else:  # pending
-            waiting = await agent.pending_threads()
-            if not waiting:
+            results = await resume_pending(agent, mode)
+            if not results:
                 print("Aucune validation en attente.")
-            results = []
-            for thread_id in waiting:
-                result = await agent.resume(thread_id, await decide(await agent.pending(thread_id)))
-                while result.status == "pending_approval":
-                    result = await agent.resume(thread_id, await decide(result.pending))
-                results.append(result)
-        for r in results:
-            show(r)
-            print(f"Trace : {agent.tracer.path_for(r.thread_id)}")
         return 0 if all(r.status in ("done", "escalated", "skipped") for r in results) else 1
     finally:
         await agent.aclose()
@@ -111,7 +151,9 @@ def main() -> None:
     i = sub.add_parser("inbox", help="lire et traiter les demandes non traitées")
     i.add_argument("--watch", type=float, default=0, metavar="SECONDES",
                    help="relire la boîte en boucle à cet intervalle (démo)")
-    sub.add_parser("pending", help="reprendre les validations en attente")
+    i.add_argument("--voix", action="store_true", help="lire les emails à voix haute et valider à l'oral")
+    pd = sub.add_parser("pending", help="reprendre les validations en attente")
+    pd.add_argument("--voix", action="store_true", help="valider à l'oral")
     try:
         sys.exit(asyncio.run(amain(p.parse_args())))
     except KeyboardInterrupt:

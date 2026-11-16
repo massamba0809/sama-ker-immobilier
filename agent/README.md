@@ -24,6 +24,7 @@ python -m sama_agent.cli email --thread demo-1 --from client@example.com \
 python -m sama_agent.cli inbox      # lit les demandes non traitées (Gmail) et les traite une à une
 python -m sama_agent.cli inbox --watch 60   # boucle de démo : relit la boîte toutes les 60 s
 python -m sama_agent.cli pending    # reprend les validations laissées en attente (même après redémarrage)
+python -m sama_agent.cli inbox --watch 30 --voix   # emails lus à voix haute, validation à l'oral (macOS)
 python -m tests.live.run_scenarios  # 6 scénarios avec le VRAI modèle sur outils mock (clé requise)
 python -m evaluation.run            # exercice 6 : 15 emails, tableau avant/après (vrai modèle + vrai catalogue MCP)
 ```

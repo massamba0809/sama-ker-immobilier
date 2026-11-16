@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     llm_rate_limit_wait_seconds: float = 20.0
     llm_timeout_seconds: float = 60.0
 
+    # Validation vocale (cli --voix) : voix macOS, modèle de transcription (vide = llm_model), durée max d'une réponse
+    voice_name: str = "Thomas"
+    voice_stt_model: str = ""
+    voice_max_seconds: float = 12.0
+
     # Outils
     tools_mode: Literal["mock", "hybrid", "integrated"] = "mock"
     mcp_transport: Literal["stdio", "streamable_http"] = "streamable_http"

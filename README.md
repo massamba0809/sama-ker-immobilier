@@ -104,6 +104,27 @@ Pour chaque action sensible, le terminal affiche l'outil, ses paramètres et le 
 puis attend `o` (oui), `n` (non) ou une consigne (refus avec consigne : l'agent propose une version
 corrigée, à revalider).
 
+### Validation à la voix (option `--voix`, macOS)
+
+```bash
+python -m sama_agent.cli inbox --watch 30 --voix
+```
+
+L'agent lit à voix haute chaque email reçu, puis l'action à valider (texte exact du brouillon, ou bien,
+date et conseiller de la visite) et demande « Vous validez ? ». Après le bip, répondre :
+
+| Vous dites | Effet |
+|---|---|
+| « oui », « d'accord, envoie », « je valide » | action approuvée |
+| « non » | refusée |
+| « non, ajoute l'adresse du bien » / « oui mais propose samedi » | refusée avec consigne : l'agent corrige et redemande |
+| « répète » | relit l'action |
+
+La décision comprise est relue à voix haute. Un « oui » assorti d'une réserve (« mais », « pas »,
+« attends ») n'approuve jamais ; une réponse inaudible ou une hésitation n'est jamais devinée : l'agent
+redemande, puis passe au clavier. Voix : `say` (macOS) ; micro : `sounddevice` ; transcription : Gemini
+(même clé). Au premier lancement, macOS demande l'autorisation d'accès au micro pour le terminal.
+
 Traces : `agent/traces/<fil Gmail>.jsonl` (chaque appel LLM avec ses tokens, chaque appel d'outil avec
 ses arguments et son résultat, chaque demande de validation et décision).
 
