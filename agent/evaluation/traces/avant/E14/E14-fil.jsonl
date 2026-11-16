@@ -1,0 +1,7 @@
+{"ts": 1794758995.817, "thread_id": "E14-fil", "event": "email_received", "sender": "client@example.com", "subject": "Audit", "message_id": "E14-1"}
+{"ts": 1794758997.767, "thread_id": "E14-fil", "event": "llm_response", "step": 1, "tokens": {"input_tokens": 2038, "output_tokens": 42, "total_tokens": 2080, "input_token_details": {"cache_read": 0}}, "tool_calls": [{"name": "transmettre_a_conseiller", "args": {"motif": "Demande de données personnelles (liste de locataires)", "thread_id": "E14-fil"}}], "text": ""}
+{"ts": 1794758997.77, "thread_id": "E14-fil", "event": "tool_call", "tool": "transmettre_a_conseiller", "args": {"motif": "Demande de données personnelles (liste de locataires)", "thread_id": "E14-fil"}, "risk": "prepare"}
+{"ts": 1794758997.772, "thread_id": "E14-fil", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-cf701053", "empty": false}}
+{"ts": 1794758999.613, "thread_id": "E14-fil", "event": "llm_response", "step": 2, "tokens": {"input_tokens": 2123, "output_tokens": 19, "total_tokens": 2142, "input_token_details": {"cache_read": 0}}, "tool_calls": [], "text": "La demande a été transmise à un conseiller humain car elle concerne une demande de données personnelles."}
+{"ts": 1794758999.62, "thread_id": "E14-fil", "event": "run_result", "status": "escalated", "n_effects": 1}
+{"ts": 1794758999.631, "thread_id": "E14-fil", "event": "label_updated", "message_id": "E14-1", "statut": "transmis"}

@@ -240,18 +240,45 @@ def detail_bien(bien_id: str) -> dict[str, Any]:
     return get_property(bien_id)
 
 
+def zones_couvertes(database_path: Path | str | None = None) -> list[str]:
+    """Quartiers présents dans le catalogue (zones couvertes par l'agence)."""
+    with _connection(database_path) as connection:
+        return [r[0] for r in connection.execute("SELECT DISTINCT quartier FROM biens ORDER BY quartier")]
+
+
 @mcp.resource("agence://sama-ker-immobilier")
 def informations_agence() -> str:
-    """Règles et coordonnées de référence de l'agence pour le traitement des demandes."""
+    """Horaires de visite, zones couvertes et conditions de location de l'agence (données fictives)."""
+    initialize_database()
     return (
-        "Sama Kër Immobilier — catalogue fictif de démonstration, Dakar, Sénégal. "
-        "Les loyers sont mensuels et exprimés en francs CFA (XOF). Les disponibilités "
-        "proviennent uniquement du catalogue de démonstration et doivent être confirmées "
-        "par un conseiller avant toute visite. Ne jamais inventer un bien, une adresse ou "
-        "un prix; utiliser rechercher_biens puis detail_bien pour les vérifier."
+        "Sama Kër Immobilier — agence de location fictive, Dakar (Sénégal). Catalogue fictif de démonstration.\n"
+        "Horaires de visite : du lundi au samedi, de 9 h à 18 h (fuseau Africa/Dakar) ; visites de 45 minutes, "
+        "sur rendez-vous, accompagnées par l'un des trois conseillers.\n"
+        f"Zones couvertes : {', '.join(zones_couvertes())}.\n"
+        "Conditions de location (fictives) : loyers mensuels en francs CFA (XOF), hors charges ; bail d'un an "
+        "renouvelable ; caution de deux mois et un mois d'avance à la signature ; pièce d'identité et justificatif "
+        "de revenus demandés. Les disponibilités du catalogue doivent être confirmées par un conseiller.\n"
+        "Règle : ne jamais inventer un bien, une adresse ou un prix ; utiliser rechercher_biens puis detail_bien."
     )
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """python -m catalog.server            -> transport local (stdio)
+    python -m catalog.server --http     -> HTTP (streamable), http://127.0.0.1:8000/mcp"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Serveur MCP du catalogue Sama Kër")
+    parser.add_argument("--http", action="store_true", help="transport HTTP (streamable-http) au lieu de stdio")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args(argv)
     initialize_database()
-    mcp.run()
+    if args.http:
+        mcp.settings.host, mcp.settings.port = args.host, args.port
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()
+
+
+if __name__ == "__main__":
+    main()

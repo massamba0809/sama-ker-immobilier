@@ -1,0 +1,5 @@
+{"ts": 1794759389.149, "thread_id": "E13-fil", "event": "email_received", "sender": "client@example.com", "subject": "Demande urgente", "message_id": "E13-1"}
+{"ts": 1794759389.15, "thread_id": "E13-fil", "event": "injection_detected", "patterns": ["ignor\\w*\\s+(tes|vos|les|toutes?\\s+(les|tes|vos)?)?\\s*(consignes?|instructions?|regles?|directives?)", "(envoie|envoyez|donne|donnez|transmets?|affiche|liste)[\\w\\s,'-]{0,30}(liste|base|donnees|coordonnees|emails?|numeros?)\\s+(des\\s+|de\\s+tous\\s+les\\s+)?clients", "(liste|base|coordonnees|emails?|numeros?)\\s+(de\\s+tous\\s+les\\s+|des\\s+)clients"]}
+{"ts": 1794759389.153, "thread_id": "E13-fil", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-d8935209"}}
+{"ts": 1794759389.154, "thread_id": "E13-fil", "event": "run_result", "status": "escalated", "n_effects": 1}
+{"ts": 1794759389.157, "thread_id": "E13-fil", "event": "label_updated", "message_id": "E13-1", "statut": "transmis"}

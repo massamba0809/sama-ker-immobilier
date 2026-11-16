@@ -48,6 +48,7 @@ def _b64(s: str) -> str:
 class FakeGoogle:
     def __init__(self):
         self.events: dict[str, dict] = {}
+        self.calendars: dict[str, str] = {"primary": "samakeer418"}
         self.drafts: dict[str, dict] = {}
         self.sent: list[dict] = []
         self.inbox: list[dict] = []
@@ -58,26 +59,45 @@ class FakeGoogle:
     # -- calendar
     def _list(self, calendarId, timeMin, timeMax, **_):
         t0, t1 = datetime.fromisoformat(timeMin), datetime.fromisoformat(timeMax)
-        items = [e for e in self.events.values()
-                 if datetime.fromisoformat(e["start"]["dateTime"]) < t1 and datetime.fromisoformat(e["end"]["dateTime"]) > t0]
+        items = [e for e in self.events.values() if e["_cal"] == calendarId
+                 and datetime.fromisoformat(e["start"]["dateTime"]) < t1 and datetime.fromisoformat(e["end"]["dateTime"]) > t0]
         return {"items": items}
 
     def _insert(self, calendarId, body):
         eid = f"evt{next(self.ids)}"
-        self.events[eid] = {**body, "id": eid}
+        self.events[eid] = {**body, "id": eid, "_cal": calendarId}
         return self.events[eid]
 
+    def _get(self, calendarId, eventId):
+        ev = self.events.get(eventId)
+        if not ev or ev["_cal"] != calendarId:
+            raise RuntimeError("404 Not Found")
+        return dict(ev)
+
     def _update(self, calendarId, eventId, body):
-        self.events[eventId] = body
+        self._get(calendarId, eventId)
+        self.events[eventId] = {**body, "_cal": calendarId}
         return body
 
+    def _delete(self, calendarId, eventId):
+        self._get(calendarId, eventId)
+        self.events.pop(eventId)
+        return {}
+
+    def add_conseillers(self, *noms):
+        for n in noms:
+            self.calendars[f"cal-{_b64(n)[:6]}"] = f"Conseiller - {n}"
+
+    def cal_of(self, nom):
+        return next(c for c, s in self.calendars.items() if s.endswith(nom))
+
     def calendar(self):
-        return type("Cal", (), {"events": lambda _s: _Res(
-            list=self._list, insert=self._insert,
-            get=lambda calendarId, eventId: dict(self.events[eventId]),
-            update=self._update,
-            delete=lambda calendarId, eventId: self.events.pop(eventId) and {},
-        )})()
+        return type("Cal", (), {
+            "events": lambda _s: _Res(list=self._list, insert=self._insert, get=self._get,
+                                      update=self._update, delete=self._delete),
+            "calendarList": lambda _s: _Res(list=lambda: {"items": [{"id": c, "summary": s}
+                                                                    for c, s in self.calendars.items()]}),
+        })()
 
     # -- gmail
     def add_email(self, thread, sender, subject, body, html=False):
@@ -211,8 +231,42 @@ def test_move_checks_conflicts_but_not_against_itself(g):
     a = gt.creer_visite("B1", lundi.isoformat(), "c@x.sn")["event_id"]
     gt.creer_visite("B2", lundi.replace(hour=12).isoformat(), "d@x.sn")
     assert gt.deplacer_visite(a, lundi.replace(hour=10, minute=30).isoformat())["ok"]
-    assert gt.deplacer_visite(a, lundi.replace(hour=12).isoformat())["error"] == "créneau déjà pris"
-    assert gt.annuler_visite(a) == {"ok": True, "event_id": a} and a not in fake.events
+    assert gt.deplacer_visite(a, lundi.replace(hour=12).isoformat())["error"].startswith("créneau déjà pris")
+    assert gt.annuler_visite(a) == {"ok": True, "event_id": a, "conseiller": "Agence"} and a not in fake.events
+
+
+def test_each_advisor_has_own_calendar_and_slots_use_any_free_advisor(g):
+    gt, fake = g
+    fake.add_conseillers("Awa Diop", "Moussa Ndiaye", "Fatou Sarr")
+    lundi = _next_monday(10, 30)
+    a = gt.creer_visite("SK-013", lundi.isoformat(), "c@x.sn", adresse_bien="Sacré-Cœur 3, Dakar")
+    assert a["ok"] and a["conseiller"] == "Awa Diop"  # premier libre (ordre alphabétique)
+    ev = fake.events[a["event_id"]]
+    assert ev["_cal"] == fake.cal_of("Awa Diop") and "Awa Diop" in ev["summary"] and ev["location"] == "Sacré-Cœur 3, Dakar"
+    b = gt.creer_visite("SK-001", lundi.isoformat(), "d@x.sn")  # même heure : un autre conseiller, pas de doublon
+    assert b["conseiller"] == "Fatou Sarr"
+    c = gt.creer_visite("SK-002", lundi.isoformat(), "e@x.sn", conseiller="moussa")  # nom approché
+    assert c["conseiller"] == "Moussa Ndiaye"
+    assert gt.creer_visite("SK-003", lundi.isoformat(), "f@x.sn") == {"ok": False, "error": "créneau déjà pris"}
+    assert gt.creer_visite("SK-003", lundi.isoformat(), "f@x.sn", conseiller="Awa")["error"] == "créneau déjà pris"
+    slots = gt.lister_creneaux_libres(lundi.date().isoformat(), lundi.date().isoformat())["creneaux"]
+    assert not any(x["debut"] == lundi.isoformat() for x in slots)  # les 3 sont pris à 10h30
+    assert {x["conseiller"] for x in slots} == {"Awa Diop"}  # sinon le premier libre
+    assert "inconnu" in gt.lister_creneaux_libres(lundi.date().isoformat(), lundi.date().isoformat(), "Ousmane")["error"]
+
+
+def test_move_and_cancel_stay_in_the_advisor_calendar(g):
+    gt, fake = g
+    fake.add_conseillers("Awa Diop", "Moussa Ndiaye")
+    lundi = _next_monday(9, 0)
+    a = gt.creer_visite("SK-013", lundi.isoformat(), "c@x.sn", conseiller="Moussa Ndiaye")
+    gt.creer_visite("SK-001", lundi.replace(hour=12).isoformat(), "d@x.sn", conseiller="Moussa Ndiaye")
+    gt.creer_visite("SK-002", lundi.replace(hour=14, minute=15).isoformat(), "e@x.sn", conseiller="Awa Diop")
+    assert gt.deplacer_visite(a["event_id"], lundi.replace(hour=12).isoformat())["error"] == "créneau déjà pris pour Moussa Ndiaye"
+    m = gt.deplacer_visite(a["event_id"], lundi.replace(hour=14, minute=15).isoformat())  # Awa y est, pas Moussa
+    assert m["ok"] and m["conseiller"] == "Moussa Ndiaye" and fake.events[a["event_id"]]["_cal"] == fake.cal_of("Moussa Ndiaye")
+    assert gt.annuler_visite(a["event_id"]) == {"ok": True, "event_id": a["event_id"], "conseiller": "Moussa Ndiaye"}
+    assert "introuvable" in gt.annuler_visite(a["event_id"])["error"]
 
 
 def test_inbox_returns_real_body_in_agent_format(g):
