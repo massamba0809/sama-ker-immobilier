@@ -1,5 +1,6 @@
 """Persistance de l'état et client MCP."""
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -39,7 +40,11 @@ async def test_pending_approval_survives_restart(settings):
 
 async def test_mcp_client_loads_tools_and_agent_uses_them(settings):
     fixture = Path(__file__).parent / "fixtures" / "fake_mcp_server.py"
-    s = settings.model_copy(update={"mcp_transport": "stdio", "mcp_command": sys.executable, "mcp_args": str(fixture)})
+    s = settings.model_copy(update={
+        "mcp_transport": "stdio",
+        "mcp_command": sys.executable,
+        "mcp_args": shlex.quote(str(fixture)),
+    })
     mcp_tools = await load_catalogue_tools_mcp(s)
     assert {t.name for t in mcp_tools} == {"rechercher_biens", "detail_bien"}
 
