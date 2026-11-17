@@ -21,9 +21,11 @@ class Settings(BaseSettings):
     # Boucle
     max_steps: int = 8
     max_tool_calls_per_turn: int = 4
-    llm_retries: int = 2
+    llm_retries: int = 3
     repeat_call_limit: int = 3
     llm_backoff_seconds: float = 1.0
+    # Quota dépassé (429) sans délai indiqué : attente avant de rappeler le modèle (fenêtre d'une minute)
+    llm_rate_limit_wait_seconds: float = 20.0
     llm_timeout_seconds: float = 60.0
 
     # Outils
@@ -35,6 +37,10 @@ class Settings(BaseSettings):
     # Dossier depuis lequel le serveur MCP stdio est lancé (défaut : racine du dépôt, où se trouve catalog/)
     mcp_cwd: str = ""
     google_tools_module: str = ""
+
+    # Correctifs issus de l'analyse des échecs (evaluation/analyse_echecs.md). False = comportement
+    # d'avant correction, utilisé uniquement par l'évaluation pour produire le tableau avant/après.
+    correctifs: bool = True
 
     # Divers
     data_dir: str = "data"

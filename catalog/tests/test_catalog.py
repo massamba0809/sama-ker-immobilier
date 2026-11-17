@@ -97,3 +97,11 @@ def test_agency_resource_warns_about_demo_availability():
     info = server.informations_agence()
     assert "fictif" in info
     assert "doivent être confirmées" in info
+
+
+def test_agency_resource_describes_hours_zones_and_conditions(monkeypatch, tmp_path):
+    monkeypatch.setattr(server, "DATABASE_PATH", tmp_path / "res.sqlite3")
+    text = server.informations_agence()
+    assert "lundi au samedi" in text and "9 h à 18 h" in text and "45 minutes" in text
+    assert "Mermoz" in text and "Parcelles Assainies" in text
+    assert "caution" in text

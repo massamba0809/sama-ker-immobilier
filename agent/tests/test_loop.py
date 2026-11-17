@@ -123,3 +123,15 @@ async def test_write_without_confirmation_key_is_not_reported_as_success(make_ag
     body = json.loads(tool_messages(llm, 1)[0].content)
     assert body["ok"] is False and "non confirmé" in json.dumps(body, ensure_ascii=False)
     assert res.effects == []
+
+
+def test_rate_limit_waits_for_provider_delay(settings):
+    from sama_agent.graph import retry_delay
+
+    quota = RuntimeError("429 RESOURCE_EXHAUSTED ... Please retry in 12.4s. ... 'retryDelay': '12s'")
+    other = RuntimeError("connexion réinitialisée")
+    assert retry_delay(quota, 0, settings) == 13.4                       # délai indiqué par Gemini
+    assert retry_delay(RuntimeError("429 Too Many Requests"), 0, settings) == settings.llm_rate_limit_wait_seconds
+    assert retry_delay(other, 1, settings) == settings.llm_backoff_seconds * 2
+    avant = settings.model_copy(update={"correctifs": False})
+    assert retry_delay(quota, 0, avant) == avant.llm_backoff_seconds    # comportement d'avant correction

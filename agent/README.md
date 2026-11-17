@@ -1,5 +1,7 @@
 # Agent IA — Sama Kër Immobilier (Partie 1 : agent et orchestration)
 
+> Installation complète, accès Google et architecture : voir le [README principal](../README.md).
+
 Agent qui traite les demandes de location reçues par email : recherche dans le catalogue (MCP),
 créneaux Google Calendar, brouillon de réponse, **validation humaine bloquante**, envoi, puis
 réservation de la visite après confirmation du client et nouvelle validation.
@@ -16,20 +18,22 @@ cp .env.example .env      # puis renseigner GOOGLE_API_KEY (ou LLM_PROVIDER=olla
 ## Lancer
 
 ```bash
-python -m pytest                                  # 37 tests, sans clé API ni réseau
+python -m pytest                                  # tests de l'agent et du module Google, sans clé API ni réseau
 python -m sama_agent.cli email --thread demo-1 --from client@example.com \
   --subject "Un F3 à Mermoz" --body "Bonjour, je cherche un F3 à Mermoz, budget 400 000 F."
 python -m sama_agent.cli inbox      # lit les demandes non traitées (Gmail) et les traite une à une
 python -m sama_agent.cli inbox --watch 60   # boucle de démo : relit la boîte toutes les 60 s
 python -m sama_agent.cli pending    # reprend les validations laissées en attente (même après redémarrage)
 python -m tests.live.run_scenarios  # 6 scénarios avec le VRAI modèle sur outils mock (clé requise)
+python -m evaluation.run            # exercice 6 : 15 emails, tableau avant/après (vrai modèle + vrai catalogue MCP)
 ```
 
 Un email déjà traité (même `message_id`) est ignoré. Le résultat des scénarios réels est dans `docs/live_run.md`, leurs traces dans `docs/traces/`.
 
 La CLI affiche chaque action sensible (outil, paramètres, texte du brouillon) et attend `o`/`n`.
 Avec `TOOLS_MODE=mock` (défaut) les outils sont simulés (données préfixées `MOCK-`).
-Avec `TOOLS_MODE=integrated`, le catalogue vient du serveur MCP et Calendar/Gmail du module de Baye Serigne.
+Avec `TOOLS_MODE=integrated`, le catalogue vient du serveur MCP (`catalog/`) et Calendar/Gmail du module `google_integration/`.
+Avec `TOOLS_MODE=hybrid`, catalogue simulé et vrais Calendar/Gmail.
 Traces : `traces/<thread_id>.jsonl` (appels LLM + tokens, outils + arguments + résultats, validations).
 
 ## Architecture

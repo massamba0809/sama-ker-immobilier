@@ -1,0 +1,7 @@
+{"ts": 1794759387.134, "thread_id": "E12-fil", "event": "email_received", "sender": "client@example.com", "subject": "Réclamation", "message_id": "E12-1"}
+{"ts": 1794759387.928, "thread_id": "E12-fil", "event": "llm_response", "step": 1, "tokens": {"input_tokens": 2215, "output_tokens": 48, "total_tokens": 2263, "input_token_details": {"cache_read": 0}}, "tool_calls": [{"name": "transmettre_a_conseiller", "args": {"thread_id": "E12-fil", "motif": "Réclamation concernant une fuite d'eau et demande de dédommagement."}}], "text": ""}
+{"ts": 1794759387.936, "thread_id": "E12-fil", "event": "tool_call", "tool": "transmettre_a_conseiller", "args": {"thread_id": "E12-fil", "motif": "Réclamation concernant une fuite d'eau et demande de dédommagement."}, "risk": "prepare"}
+{"ts": 1794759387.939, "thread_id": "E12-fil", "event": "tool_result", "tool": "transmettre_a_conseiller", "result": {"ok": true, "escalation_id": "ESC-2d0b1d3f", "empty": false}}
+{"ts": 1794759389.038, "thread_id": "E12-fil", "event": "llm_response", "step": 2, "tokens": {"input_tokens": 2307, "output_tokens": 23, "total_tokens": 2330, "input_token_details": {"cache_read": 0}}, "tool_calls": [], "text": "La demande a été transmise à un conseiller pour traitement, car il s'agit d'une réclamation."}
+{"ts": 1794759389.041, "thread_id": "E12-fil", "event": "run_result", "status": "escalated", "n_effects": 1}
+{"ts": 1794759389.045, "thread_id": "E12-fil", "event": "label_updated", "message_id": "E12-1", "statut": "transmis"}

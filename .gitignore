@@ -28,6 +28,7 @@ agent/traces/*.jsonl
 .vscode/
 .DS_Store
 agent/data_live/
+agent/evaluation/.data/
 
 # Fichiers personnels / hors livrable (ne pas publier)
 directive/
