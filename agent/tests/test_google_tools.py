@@ -309,7 +309,8 @@ def test_label_moves_email_between_tracking_labels(g):
 def test_api_errors_become_ok_false(g, monkeypatch):
     gt, _ = g
     monkeypatch.setattr(gt, "get_calendar_service", lambda: (_ for _ in ()).throw(RuntimeError("token.json introuvable")))
-    res = gt.lister_creneaux_libres("2026-11-16", "2026-11-16")
+    tomorrow = (datetime.now(TZ) + timedelta(days=1)).date().isoformat()
+    res = gt.lister_creneaux_libres(tomorrow, tomorrow)
     assert res == {"ok": False, "error": "token.json introuvable"}
 
 
